@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>好貨倉後台</title>
+  <link rel="stylesheet" href="admin.css" />
+</head>
+<body>
+  <div id="loginPage" class="login-page">
+    <div class="login-card">
+      <h1>好貨倉後台</h1>
+      <input id="account" placeholder="帳號" />
+      <input id="password" type="password" placeholder="密碼" />
+      <button onclick="adminLogin()">登入</button>
+    </div>
+  </div>
+
+  <div id="adminApp" class="hidden">
+    <aside class="sidebar">
+      <h2>好貨倉</h2>
+      <button onclick="showOrders()">訂單管理</button>
+      <button id="dashboardBtn" onclick="showDashboard()">老闆儀表板</button>
+      <button onclick="logout()">登出</button>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <h1 id="pageTitle">訂單管理</h1>
+        <span id="adminName"></span>
+      </header>
+
+      <section id="dashboard" class="dashboard hidden"></section>
+
+      <section id="orders"></section>
+    </main>
+  </div>
+
+  <script src="admin.js?v=2026061617"></script>
+</body>
+</html>
