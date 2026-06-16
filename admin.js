@@ -3,6 +3,7 @@ const API_URL = 'https://script.google.com/macros/s/AKfycbwtFAFOEYaZDBcJy-wM9ecy
 let admin = JSON.parse(localStorage.getItem('goodwarehouse_admin') || 'null');
 let currentOrders = [];
 let currentPage = 'orders';
+let activeOrderTab = 'new';
 
 const $ = id => document.getElementById(id);
 const money = n => Number(n || 0).toLocaleString('zh-TW');
@@ -57,7 +58,8 @@ function logout() {
 }
 
 function refreshCurrentPage() {
-  showOrders();
+  if (currentPage === 'dashboard') showDashboard();
+  else showOrders();
 }
 
 async function showDashboard() {
@@ -106,59 +108,113 @@ async function showOrders() {
 function renderOrders() {
   const keyword = $('orderKeyword')?.value.trim().toLowerCase() || '';
 
-  const filtered = currentOrders.filter(o => {
+  const tabs = [
+    { key: 'new', label: '新訂單', statuses: ['new'] },
+    { key: 'picking', label: '備貨中', statuses: ['備貨中', '缺貨待補'] },
+    { key: 'delivery', label: '待配送', statuses: ['待配送'] },
+    { key: 'done', label: '已完成', statuses: ['已完成'] }
+  ];
+
+  const currentTab = tabs.find(t => t.key === activeOrderTab) || tabs[0];
+
+  const baseFiltered = currentOrders.filter(o => {
     const text = `${o.orderId} ${o.customerName} ${o.phone} ${o.address}`.toLowerCase();
     return !keyword || text.includes(keyword);
   });
 
-  const groups = [
-    { title: '新訂單', statuses: ['new'], color: '#dbeafe' },
-    { title: '備貨中', statuses: ['備貨中', '缺貨待補'], color: '#fef3c7' },
-    { title: '待配送', statuses: ['待配送'], color: '#ede9fe' },
-    { title: '已完成', statuses: ['已完成'], color: '#dcfce7' }
-  ];
+  const list = baseFiltered.filter(o => {
+    return currentTab.statuses.includes(o.status || 'new');
+  });
 
   $('ordersList').innerHTML = `
-    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;align-items:start;">
-      ${groups.map(g => {
-        const list = filtered.filter(o => g.statuses.includes(o.status || 'new'));
-
+    <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;">
+      ${tabs.map(t => {
+        const count = baseFiltered.filter(o => t.statuses.includes(o.status || 'new')).length;
+        const active = activeOrderTab === t.key;
         return `
-          <div style="background:#f8fafc;border:1px solid #e5e7eb;border-radius:18px;padding:14px;min-height:500px;">
-            <h3 style="margin:0 0 12px;padding:10px;border-radius:12px;background:${g.color};">
-              ${g.title}（${list.length}）
-            </h3>
-            ${list.map(orderCard).join('') || `<div style="color:#667085;text-align:center;padding:30px 0;">目前沒有訂單</div>`}
-          </div>
+          <button
+            onclick="setOrderTab('${t.key}')"
+            style="
+              border:0;
+              border-radius:999px;
+              padding:12px 18px;
+              font-weight:900;
+              background:${active ? '#0b5cff' : '#e5e7eb'};
+              color:${active ? '#fff' : '#111827'};
+            "
+          >
+            ${t.label}（${count}）
+          </button>
         `;
       }).join('')}
     </div>
+
+    <div class="panel">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+        <h2 style="margin:0;">${currentTab.label}</h2>
+        <span style="color:#667085;">共 ${list.length} 筆</span>
+      </div>
+
+      ${list.map(orderCard).join('') || `<div style="color:#667085;text-align:center;padding:40px 0;">目前沒有訂單</div>`}
+    </div>
   `;
+}
+
+function setOrderTab(tab) {
+  activeOrderTab = tab;
+  renderOrders();
 }
 
 function orderCard(o) {
   return `
     <div class="order-card" style="margin-bottom:12px;">
-      <div class="order-id">${o.orderId}</div>
-      <div class="order-info">
-        ${o.orderDate}<br>
-        客戶：${o.customerName}<br>
-        電話：${o.phone}<br>
-        金額：$${money(o.orderAmount)}｜回饋：$${money(o.rewardAmount)}<br>
-        ${o.picker ? `備貨員：${o.picker}<br>` : ''}
-        ${o.pickingNote ? `備註：${o.pickingNote}<br>` : ''}
-        ${admin.role === 'owner' ? `毛利：$${money(o.grossProfit)}｜淨毛利：$${money(o.netProfit)}<br>` : ''}
+      <div class="order-top">
+        <div>
+          <div class="order-id">${o.orderId}</div>
+          <div class="order-info">
+            ${o.orderDate}<br>
+            客戶：${o.customerName}<br>
+            電話：${o.phone}<br>
+            地址：${o.address}<br>
+            金額：$${money(o.orderAmount)}｜回饋：$${money(o.rewardAmount)}<br>
+            ${o.picker ? `備貨員：${o.picker}<br>` : ''}
+            ${o.pickingNote ? `備貨備註：${o.pickingNote}<br>` : ''}
+            ${admin.role === 'owner' ? `毛利：$${money(o.grossProfit)}｜淨毛利：$${money(o.netProfit)}<br>` : ''}
+          </div>
+        </div>
+
+        <div>
+          <div class="amount">$${money(o.orderAmount)}</div>
+          <span class="status ${statusClass(o.status)}">${statusText(o.status)}</span>
+        </div>
       </div>
 
       <div class="actions">
         <button onclick="viewItems('${o.orderId}')">明細</button>
         ${o.status === 'new' ? `<button onclick="startPicking('${o.orderId}')">開始備貨</button>` : ''}
         ${['備貨中','缺貨待補'].includes(o.status) ? `<button onclick="openPicking('${o.orderId}')">繼續備貨</button>` : ''}
-        ${o.status === '待配送' ? `<button class="print" onclick="printOrder('${o.orderId}')">列印貨單</button><button onclick="changeStatus('${o.orderId}', '已完成')">已完成</button>` : ''}
-        ${o.status === '已完成' ? `<button onclick="printOrder('${o.orderId}')">補印</button>` : ''}
+        ${o.status === '待配送' ? `
+          <button class="print" onclick="printOrder('${o.orderId}')">列印貨單</button>
+          <button onclick="changeStatus('${o.orderId}', '已完成')">已完成</button>
+        ` : ''}
+        ${o.status === '已完成' ? `<button onclick="printOrder('${o.orderId}')">補印貨單</button>` : ''}
       </div>
     </div>
   `;
+}
+
+function statusClass(status) {
+  if (status === '備貨中') return 'prepare';
+  if (status === '缺貨待補') return 'prepare';
+  if (status === '待配送') return 'delivery';
+  if (status === '配送中') return 'delivery';
+  if (status === '已完成') return 'done';
+  return 'new';
+}
+
+function statusText(status) {
+  if (status === 'new') return '新訂單';
+  return status || '新訂單';
 }
 
 async function startPicking(orderId) {
@@ -253,9 +309,18 @@ async function openPicking(orderId) {
     <label style="font-weight:900;">備貨單備註</label>
     <textarea id="pickingNote" placeholder="例如：吸色片暫缺，待下批到貨補出。" style="width:100%;height:90px;padding:12px;border:1px solid #d1d5db;border-radius:12px;margin-top:6px;">${order?.pickingNote || ''}</textarea>
 
-    <div style="display:flex;gap:10px;margin-top:18px;">
-      <button onclick="savePicking('${orderId}', ${items.length})" style="flex:1;background:#0b5cff;color:white;border:0;border-radius:12px;padding:12px;font-weight:900;">儲存備貨進度</button>
-      <button onclick="closeModal()" style="background:#e5e7eb;border:0;border-radius:12px;padding:12px;font-weight:900;">關閉</button>
+    <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:10px;margin-top:18px;">
+      <button onclick="savePicking('${orderId}', ${items.length}, false)" style="background:#0b5cff;color:white;border:0;border-radius:12px;padding:12px;font-weight:900;">
+        儲存備貨進度
+      </button>
+
+      <button onclick="savePicking('${orderId}', ${items.length}, true)" style="background:#16a34a;color:white;border:0;border-radius:12px;padding:12px;font-weight:900;">
+        完成備貨，送到待配送
+      </button>
+
+      <button onclick="closeModal()" style="background:#e5e7eb;border:0;border-radius:12px;padding:12px;font-weight:900;">
+        關閉
+      </button>
     </div>
   `;
 
@@ -278,7 +343,7 @@ function toggleOut(index) {
   }
 }
 
-async function savePicking(orderId, count) {
+async function savePicking(orderId, count, finishPicking) {
   const items = [];
 
   for (let i = 0; i < count; i++) {
@@ -303,7 +368,22 @@ async function savePicking(orderId, count) {
 
   if (!data.ok) return alert(data.message || '儲存失敗');
 
-  alert('備貨進度已儲存');
+  if (finishPicking) {
+    const unfinished = items.some(i => !i.isPicked && !i.isOutOfStock);
+
+    if (unfinished) {
+      alert('還有商品沒有勾選「已備妥」或「無法備到」，不能送到待配送');
+      return;
+    }
+
+    await changeStatus(orderId, '待配送', false);
+    alert('已完成備貨，訂單已送到待配送');
+    activeOrderTab = 'delivery';
+  } else {
+    alert('備貨進度已儲存');
+    activeOrderTab = 'picking';
+  }
+
   closeModal();
   showOrders();
 }
