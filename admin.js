@@ -122,9 +122,7 @@ function renderOrders() {
     return !keyword || text.includes(keyword);
   });
 
-  const list = baseFiltered.filter(o => {
-    return currentTab.statuses.includes(o.status || 'new');
-  });
+  const list = baseFiltered.filter(o => currentTab.statuses.includes(o.status || 'new'));
 
   $('ordersList').innerHTML = `
     <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;">
@@ -132,17 +130,7 @@ function renderOrders() {
         const count = baseFiltered.filter(o => t.statuses.includes(o.status || 'new')).length;
         const active = activeOrderTab === t.key;
         return `
-          <button
-            onclick="setOrderTab('${t.key}')"
-            style="
-              border:0;
-              border-radius:999px;
-              padding:12px 18px;
-              font-weight:900;
-              background:${active ? '#0b5cff' : '#e5e7eb'};
-              color:${active ? '#fff' : '#111827'};
-            "
-          >
+          <button onclick="setOrderTab('${t.key}')" style="border:0;border-radius:999px;padding:12px 18px;font-weight:900;background:${active ? '#0b5cff' : '#e5e7eb'};color:${active ? '#fff' : '#111827'};">
             ${t.label}（${count}）
           </button>
         `;
@@ -359,6 +347,7 @@ async function savePicking(orderId, count, finishPicking) {
     orderId,
     picker: $('pickingPicker').value.trim() || admin.name,
     pickingNote: $('pickingNote').value.trim(),
+    finishPicking,
     items
   };
 
@@ -369,15 +358,7 @@ async function savePicking(orderId, count, finishPicking) {
   if (!data.ok) return alert(data.message || '儲存失敗');
 
   if (finishPicking) {
-    const unfinished = items.some(i => !i.isPicked && !i.isOutOfStock);
-
-    if (unfinished) {
-      alert('還有商品沒有勾選「已備妥」或「無法備到」，不能送到待配送');
-      return;
-    }
-
-    await changeStatus(orderId, '待配送', false);
-    alert('已完成備貨，訂單已送到待配送');
+    alert('已完成備貨，訂單已送到待配送，金額已更新為實際配送金額');
     activeOrderTab = 'delivery';
   } else {
     alert('備貨進度已儲存');
