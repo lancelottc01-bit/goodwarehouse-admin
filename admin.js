@@ -183,9 +183,13 @@ function orderCard(o) {
         ${['備貨中','缺貨待補'].includes(o.status) ? `<button onclick="openPicking('${o.orderId}')">繼續備貨</button>` : ''}
         ${o.status === '待配送' ? `
           <button class="print" onclick="printOrder('${o.orderId}')">列印貨單</button>
-          <button onclick="changeStatus('${o.orderId}', '已完成')">已完成</button>
+          <button onclick="backToPicking('${o.orderId}')">回到備貨</button>
+          <button onclick="finishOrder('${o.orderId}')">已完成</button>
         ` : ''}
-        ${o.status === '已完成' ? `<button onclick="printOrder('${o.orderId}')">補印貨單</button>` : ''}
+        ${o.status === '已完成' ? `
+          <button onclick="printOrder('${o.orderId}')">補印貨單</button>
+          <button onclick="restoreToDelivery('${o.orderId}')">恢復待配送</button>
+        ` : ''}
       </div>
     </div>
   `;
@@ -209,6 +213,24 @@ async function startPicking(orderId) {
   await changeStatus(orderId, '備貨中', false);
   await showOrders();
   openPicking(orderId);
+}
+
+async function backToPicking(orderId) {
+  if (!confirm('確定要把這張訂單退回「備貨中」嗎？')) return;
+  activeOrderTab = 'picking';
+  await changeStatus(orderId, '備貨中');
+}
+
+async function restoreToDelivery(orderId) {
+  if (!confirm('確定要把這張訂單恢復到「待配送」嗎？')) return;
+  activeOrderTab = 'delivery';
+  await changeStatus(orderId, '待配送');
+}
+
+async function finishOrder(orderId) {
+  if (!confirm('確認這張訂單已配送完成？')) return;
+  activeOrderTab = 'done';
+  await changeStatus(orderId, '已完成');
 }
 
 async function viewItems(orderId) {
