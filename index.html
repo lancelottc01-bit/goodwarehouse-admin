@@ -9,33 +9,88 @@
 <body>
   <div id="loginPage" class="login-page">
     <div class="login-card">
+      <div class="logo">🏬</div>
       <h1>好貨倉後台</h1>
+      <p>員工訂單處理 / 老闆營運管理</p>
       <input id="account" placeholder="帳號" />
       <input id="password" type="password" placeholder="密碼" />
-      <button onclick="adminLogin()">登入</button>
+      <button onclick="adminLogin()">登入後台</button>
     </div>
   </div>
 
-  <div id="adminApp" class="hidden">
+  <div id="adminApp" class="admin-app hidden">
     <aside class="sidebar">
-      <h2>好貨倉</h2>
-      <button onclick="showOrders()">訂單管理</button>
-      <button id="dashboardBtn" onclick="showDashboard()">老闆儀表板</button>
-      <button onclick="logout()">登出</button>
+      <div class="side-logo">
+        <div class="icon">🏬</div>
+        <div>
+          <h2>好貨倉</h2>
+          <span>後台管理系統</span>
+        </div>
+      </div>
+
+      <nav>
+        <button id="navDashboard" onclick="showDashboard()">🏠 總覽儀表板</button>
+        <button id="navOrders" onclick="showOrders()">📦 訂單管理</button>
+      </nav>
+
+      <div class="side-user">
+        <div class="avatar">👤</div>
+        <div>
+          <strong id="adminName">管理員</strong>
+          <span id="adminRole">admin</span>
+        </div>
+      </div>
+
+      <button class="logout" onclick="logout()">登出</button>
     </aside>
 
     <main class="main">
       <header class="topbar">
-        <h1 id="pageTitle">訂單管理</h1>
-        <span id="adminName"></span>
+        <div>
+          <h1 id="pageTitle">總覽儀表板</h1>
+          <p id="pageSubtitle">歡迎回來，管理員！</p>
+        </div>
+
+        <div class="top-actions">
+          <button onclick="refreshCurrentPage()">🔄 重新整理</button>
+          <button onclick="showOrders()">📦 查看訂單</button>
+        </div>
       </header>
 
-      <section id="dashboard" class="dashboard hidden"></section>
+      <section id="dashboardPage" class="page"></section>
 
-      <section id="orders"></section>
+      <section id="ordersPage" class="page hidden">
+        <div class="panel">
+          <div class="panel-head">
+            <h2>訂單管理</h2>
+            <div class="filters">
+              <input id="orderKeyword" placeholder="搜尋訂單 / 客戶 / 電話 / 地址" oninput="renderOrders()" />
+              <select id="statusFilter" onchange="renderOrders()">
+                <option value="全部">全部狀態</option>
+                <option value="new">新訂單</option>
+                <option value="備貨中">備貨中</option>
+                <option value="配送中">配送中</option>
+                <option value="已完成">已完成</option>
+              </select>
+            </div>
+          </div>
+
+          <div id="ordersList"></div>
+        </div>
+      </section>
     </main>
   </div>
 
-  <script src="admin.js?v=2026061617"></script>
+  <div id="modal" class="modal hidden">
+    <div class="modal-card">
+      <div class="modal-head">
+        <h2 id="modalTitle">訂單明細</h2>
+        <button onclick="closeModal()">✕</button>
+      </div>
+      <div id="modalBody"></div>
+    </div>
+  </div>
+
+  <script src="admin.js?v=2026061618"></script>
 </body>
 </html>
