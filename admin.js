@@ -1,4 +1,4 @@
-const API_URL = 'https://script.google.com/macros/s/AKfycbwtFAFOEYaZDBcJy-wM9ecy-gMY3nb9ZUljskdkNN3osyKu-R6H27Tp9D4yuxlsLiYjOg/exec';
+const API_URL = 'https://script.google.com/macros/s/AKfycbzmFil6cgmSIfzO30eKXW5cUaMMhytwUBzefDP2dGJf-L-f8SUCTfCedtUYYBsx4_Z7VQ/exec';
 
 let admin = JSON.parse(localStorage.getItem('goodwarehouse_admin') || 'null');
 let currentOrders = [];
