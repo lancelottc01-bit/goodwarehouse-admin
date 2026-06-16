@@ -1,14 +1,11 @@
-const API_URL = 'https://script.google.com/macros/s/AKfycbyNwtKduhUJdytwC_DiuUw8SV4VGv4I1Y_14HMU9uyhnQBtsIUOfrcZWacySPj8gmjwLw/exec';
+const API_URL = 'https://script.google.com/macros/s/AKfycbwtFAFOEYaZDBcJy-wM9ecy-gMY3nb9ZUljskdkNN3osyKu-R6H27Tp9D4yuxlsLiYjOg/exec';
 
 let admin = JSON.parse(localStorage.getItem('goodwarehouse_admin') || 'null');
 let currentOrders = [];
 let currentPage = 'orders';
 
 const $ = id => document.getElementById(id);
-
-function money(n) {
-  return Number(n || 0).toLocaleString('zh-TW');
-}
+const money = n => Number(n || 0).toLocaleString('zh-TW');
 
 function jsonp(url) {
   return new Promise((resolve, reject) => {
@@ -21,15 +18,8 @@ function jsonp(url) {
       document.body.removeChild(script);
     };
 
-    const separator = url.includes('?') ? '&' : '?';
-    script.src = url + separator + 'callback=' + callbackName + '&t=' + Date.now();
-
-    script.onerror = () => {
-      delete window[callbackName];
-      document.body.removeChild(script);
-      reject(new Error('JSONP 載入失敗'));
-    };
-
+    script.src = url + (url.includes('?') ? '&' : '?') + 'callback=' + callbackName + '&t=' + Date.now();
+    script.onerror = reject;
     document.body.appendChild(script);
   });
 }
@@ -38,22 +28,13 @@ async function adminLogin() {
   const account = $('account').value.trim();
   const password = $('password').value.trim();
 
-  if (!account || !password) {
-    alert('請輸入帳號密碼');
-    return;
-  }
+  if (!account || !password) return alert('請輸入帳號密碼');
 
   const data = await jsonp(
-    API_URL +
-    '?action=adminLogin' +
-    '&account=' + encodeURIComponent(account) +
-    '&password=' + encodeURIComponent(password)
+    `${API_URL}?action=adminLogin&account=${encodeURIComponent(account)}&password=${encodeURIComponent(password)}`
   );
 
-  if (!data.ok) {
-    alert(data.message || '登入失敗');
-    return;
-  }
+  if (!data.ok) return alert(data.message || '登入失敗');
 
   admin = data.admin;
   localStorage.setItem('goodwarehouse_admin', JSON.stringify(admin));
@@ -63,16 +44,11 @@ async function adminLogin() {
 function startAdmin() {
   $('loginPage').classList.add('hidden');
   $('adminApp').classList.remove('hidden');
-
   $('adminName').textContent = admin.name;
   $('adminRole').textContent = admin.role === 'owner' ? '老闆' : '員工';
 
-  if (admin.role !== 'owner') {
-    $('navDashboard').style.display = 'none';
-    showOrders();
-  } else {
-    showDashboard();
-  }
+  if (admin.role !== 'owner') $('navDashboard').style.display = 'none';
+  showOrders();
 }
 
 function logout() {
@@ -80,37 +56,21 @@ function logout() {
   location.reload();
 }
 
-function setActive(navId) {
-  document.querySelectorAll('.sidebar nav button').forEach(btn => btn.classList.remove('active'));
-  $(navId)?.classList.add('active');
-}
-
 function refreshCurrentPage() {
-  if (currentPage === 'dashboard') showDashboard();
-  else showOrders();
+  showOrders();
 }
 
 async function showDashboard() {
-  if (admin.role !== 'owner') {
-    showOrders();
-    return;
-  }
+  if (admin.role !== 'owner') return showOrders();
 
   currentPage = 'dashboard';
-  setActive('navDashboard');
-
   $('pageTitle').textContent = '總覽儀表板';
   $('pageSubtitle').textContent = '今日與本月營運數字';
-
   $('dashboardPage').classList.remove('hidden');
   $('ordersPage').classList.add('hidden');
 
-  const data = await jsonp(API_URL + '?action=getAdminDashboard&role=owner');
-
-  if (!data.ok) {
-    alert(data.message || '讀取儀表板失敗');
-    return;
-  }
+  const data = await jsonp(`${API_URL}?action=getAdminDashboard&role=owner`);
+  if (!data.ok) return alert(data.message || '讀取失敗');
 
   const d = data.dashboard;
 
@@ -125,64 +85,19 @@ async function showDashboard() {
       <div class="kpi-card green"><div class="label">本月毛利</div><div class="value">$${money(d.monthGrossProfit)}</div></div>
       <div class="kpi-card purple"><div class="label">本月淨毛利</div><div class="value">$${money(d.monthNetProfit)}</div></div>
     </div>
-
-    <div style="height:20px;"></div>
-
-    <div class="panel">
-      <div class="panel-head">
-        <h2>最新訂單</h2>
-        <button onclick="showOrders()">查看全部訂單</button>
-      </div>
-      <div id="dashboardRecentOrders">載入中...</div>
-    </div>
   `;
-
-  await loadRecentOrdersForDashboard();
-}
-
-async function loadRecentOrdersForDashboard() {
-  const data = await jsonp(
-    API_URL + '?action=getAdminOrders&role=' + encodeURIComponent(admin.role)
-  );
-
-  if (!data.ok) return;
-
-  const orders = (data.orders || []).slice(0, 5);
-
-  $('dashboardRecentOrders').innerHTML = orders.map(o => `
-    <div class="order-card">
-      <div class="order-top">
-        <div>
-          <div class="order-id">${o.orderId}</div>
-          <div class="order-info">
-            ${o.customerName}｜${o.orderDate}<br>
-            金額：$${money(o.orderAmount)}｜回饋：$${money(o.rewardAmount)}
-          </div>
-        </div>
-        <span class="status ${statusClass(o.status)}">${statusText(o.status)}</span>
-      </div>
-    </div>
-  `).join('');
 }
 
 async function showOrders() {
   currentPage = 'orders';
-  setActive('navOrders');
-
   $('pageTitle').textContent = '訂單管理';
-  $('pageSubtitle').textContent = '處理訂單、查看明細、備貨、列印貨單';
+  $('pageSubtitle').textContent = '新訂單 → 備貨中 → 待配送 → 已完成';
 
   $('dashboardPage').classList.add('hidden');
   $('ordersPage').classList.remove('hidden');
 
-  const data = await jsonp(
-    API_URL + '?action=getAdminOrders&role=' + encodeURIComponent(admin.role)
-  );
-
-  if (!data.ok) {
-    alert(data.message || '讀取訂單失敗');
-    return;
-  }
+  const data = await jsonp(`${API_URL}?action=getAdminOrders&role=${encodeURIComponent(admin.role)}`);
+  if (!data.ok) return alert(data.message || '讀取訂單失敗');
 
   currentOrders = data.orders || [];
   renderOrders();
@@ -190,194 +105,153 @@ async function showOrders() {
 
 function renderOrders() {
   const keyword = $('orderKeyword')?.value.trim().toLowerCase() || '';
-  const status = $('statusFilter')?.value || '全部';
 
-  const list = currentOrders.filter(o => {
+  const filtered = currentOrders.filter(o => {
     const text = `${o.orderId} ${o.customerName} ${o.phone} ${o.address}`.toLowerCase();
-    const matchKeyword = !keyword || text.includes(keyword);
-    const matchStatus = status === '全部' || String(o.status) === String(status);
-    return matchKeyword && matchStatus;
+    return !keyword || text.includes(keyword);
   });
 
-  if (!list.length) {
-    $('ordersList').innerHTML = `<div style="padding:30px;text-align:center;color:#667085;">目前沒有符合條件的訂單</div>`;
-    return;
-  }
+  const groups = [
+    { title: '新訂單', statuses: ['new'], color: '#dbeafe' },
+    { title: '備貨中', statuses: ['備貨中', '缺貨待補'], color: '#fef3c7' },
+    { title: '待配送', statuses: ['待配送'], color: '#ede9fe' },
+    { title: '已完成', statuses: ['已完成'], color: '#dcfce7' }
+  ];
 
-  $('ordersList').innerHTML = list.map(o => `
-    <div class="order-card">
-      <div class="order-top">
-        <div>
-          <div class="order-id">${o.orderId}</div>
-          <div class="order-info">
-            下單時間：${o.orderDate}<br>
-            客戶：${o.customerName}<br>
-            電話：${o.phone}<br>
-            地址：${o.address}<br>
-            金額：$${money(o.orderAmount)}｜回饋：$${money(o.rewardAmount)}
-            ${admin.role === 'owner' ? `<br>毛利：$${money(o.grossProfit)}｜淨毛利：$${money(o.netProfit)}` : ''}
+  $('ordersList').innerHTML = `
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;align-items:start;">
+      ${groups.map(g => {
+        const list = filtered.filter(o => g.statuses.includes(o.status || 'new'));
+
+        return `
+          <div style="background:#f8fafc;border:1px solid #e5e7eb;border-radius:18px;padding:14px;min-height:500px;">
+            <h3 style="margin:0 0 12px;padding:10px;border-radius:12px;background:${g.color};">
+              ${g.title}（${list.length}）
+            </h3>
+            ${list.map(orderCard).join('') || `<div style="color:#667085;text-align:center;padding:30px 0;">目前沒有訂單</div>`}
           </div>
-        </div>
+        `;
+      }).join('')}
+    </div>
+  `;
+}
 
-        <div>
-          <div class="amount">$${money(o.orderAmount)}</div>
-          <span class="status ${statusClass(o.status)}">${statusText(o.status)}</span>
-        </div>
+function orderCard(o) {
+  return `
+    <div class="order-card" style="margin-bottom:12px;">
+      <div class="order-id">${o.orderId}</div>
+      <div class="order-info">
+        ${o.orderDate}<br>
+        客戶：${o.customerName}<br>
+        電話：${o.phone}<br>
+        金額：$${money(o.orderAmount)}｜回饋：$${money(o.rewardAmount)}<br>
+        ${o.picker ? `備貨員：${o.picker}<br>` : ''}
+        ${o.pickingNote ? `備註：${o.pickingNote}<br>` : ''}
+        ${admin.role === 'owner' ? `毛利：$${money(o.grossProfit)}｜淨毛利：$${money(o.netProfit)}<br>` : ''}
       </div>
 
       <div class="actions">
-        <button onclick="viewItems('${o.orderId}')">查看明細</button>
-        <button onclick="openPicking('${o.orderId}')">開始備貨</button>
-        <button class="print" onclick="printOrder('${o.orderId}')">列印貨單</button>
-        <button class="warn" onclick="changeStatus('${o.orderId}', '備貨中')">備貨中</button>
-        <button onclick="changeStatus('${o.orderId}', '配送中')">配送中</button>
-        <button onclick="changeStatus('${o.orderId}', '已完成')">已完成</button>
+        <button onclick="viewItems('${o.orderId}')">明細</button>
+        ${o.status === 'new' ? `<button onclick="startPicking('${o.orderId}')">開始備貨</button>` : ''}
+        ${['備貨中','缺貨待補'].includes(o.status) ? `<button onclick="openPicking('${o.orderId}')">繼續備貨</button>` : ''}
+        ${o.status === '待配送' ? `<button class="print" onclick="printOrder('${o.orderId}')">列印貨單</button><button onclick="changeStatus('${o.orderId}', '已完成')">已完成</button>` : ''}
+        ${o.status === '已完成' ? `<button onclick="printOrder('${o.orderId}')">補印</button>` : ''}
       </div>
     </div>
-  `).join('');
+  `;
 }
 
-function statusClass(status) {
-  if (status === '備貨中') return 'prepare';
-  if (status === '配送中') return 'delivery';
-  if (status === '已完成') return 'done';
-  if (status === '已備妥') return 'done';
-  if (status === '缺貨待補') return 'prepare';
-  return 'new';
-}
-
-function statusText(status) {
-  if (status === 'new') return '新訂單';
-  return status || '新訂單';
+async function startPicking(orderId) {
+  await changeStatus(orderId, '備貨中', false);
+  await showOrders();
+  openPicking(orderId);
 }
 
 async function viewItems(orderId) {
   const data = await jsonp(
-    API_URL +
-    '?action=getAdminOrderItems' +
-    '&orderId=' + encodeURIComponent(orderId) +
-    '&role=' + encodeURIComponent(admin.role)
+    `${API_URL}?action=getAdminOrderItems&orderId=${encodeURIComponent(orderId)}&role=${encodeURIComponent(admin.role)}`
   );
 
-  if (!data.ok) {
-    alert(data.message || '讀取明細失敗');
-    return;
-  }
-
-  const rows = data.items.map(i => `
-    <tr>
-      <td>${i.productName}</td>
-      <td>$${money(i.salePrice)}</td>
-      <td>${i.qty}</td>
-      <td>$${money(i.subtotal)}</td>
-      <td>$${money(i.rewardAmount)}</td>
-      ${admin.role === 'owner' ? `
-        <td>$${money(i.costPrice)}</td>
-        <td>$${money(i.grossProfit)}</td>
-        <td>$${money(i.netProfit)}</td>
-      ` : ''}
-    </tr>
-  `).join('');
+  if (!data.ok) return alert(data.message || '讀取明細失敗');
 
   $('modalTitle').textContent = `訂單明細：${orderId}`;
   $('modalBody').innerHTML = `
     <table class="detail-table">
       <thead>
         <tr>
-          <th>商品</th>
-          <th>單價</th>
-          <th>數量</th>
-          <th>小計</th>
-          <th>回饋</th>
-          ${admin.role === 'owner' ? `
-            <th>成本</th>
-            <th>毛利</th>
-            <th>淨毛利</th>
-          ` : ''}
+          <th>商品</th><th>單價</th><th>數量</th><th>小計</th><th>回饋</th>
+          ${admin.role === 'owner' ? '<th>成本</th><th>毛利</th><th>淨毛利</th>' : ''}
         </tr>
       </thead>
-      <tbody>${rows}</tbody>
+      <tbody>
+        ${data.items.map(i => `
+          <tr>
+            <td>${i.productName}</td>
+            <td>$${money(i.salePrice)}</td>
+            <td>${i.qty}</td>
+            <td>$${money(i.subtotal)}</td>
+            <td>$${money(i.rewardAmount)}</td>
+            ${admin.role === 'owner' ? `
+              <td>$${money(i.costPrice)}</td>
+              <td>$${money(i.grossProfit)}</td>
+              <td>$${money(i.netProfit)}</td>
+            ` : ''}
+          </tr>
+        `).join('')}
+      </tbody>
     </table>
   `;
-
   $('modal').classList.remove('hidden');
 }
 
 async function openPicking(orderId) {
   const order = currentOrders.find(o => o.orderId === orderId);
 
-  const data = await jsonp(
-    API_URL +
-    '?action=getPickingItems' +
-    '&orderId=' + encodeURIComponent(orderId)
-  );
-
-  if (!data.ok) {
-    alert(data.message || '讀取備貨資料失敗');
-    return;
-  }
+  const data = await jsonp(`${API_URL}?action=getPickingItems&orderId=${encodeURIComponent(orderId)}`);
+  if (!data.ok) return alert(data.message || '讀取備貨資料失敗');
 
   const items = data.items || [];
 
-  const rows = items.map((i, index) => `
-    <div class="picking-item" style="border:1px solid #e5e7eb;border-radius:14px;padding:14px;margin-bottom:12px;">
-      <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;">
-        <div>
-          <strong style="font-size:16px;">${i.productName}</strong>
-          <div style="color:#667085;margin-top:4px;">
-            需求數量：${i.qty}　供應源：${i.supplier || '未設定'}
-          </div>
-        </div>
-        <label style="font-weight:900;">
-          <input type="checkbox" id="picked_${index}" ${i.isPicked ? 'checked' : ''}>
-          已備貨
-        </label>
-      </div>
-
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px;">
-        <div>
-          <label style="font-size:13px;color:#667085;">已備數量</label>
-          <input id="pickedQty_${index}" type="number" value="${i.pickedQty || 0}" min="0" style="width:100%;padding:10px;border:1px solid #d1d5db;border-radius:10px;">
-        </div>
-
-        <div>
-          <label style="font-size:13px;color:#667085;">目前缺貨</label>
-          <div style="padding:10px;">
-            <label>
-              <input type="checkbox" id="out_${index}" ${i.isOutOfStock ? 'checked' : ''}>
-              標記缺貨
-            </label>
-          </div>
-        </div>
-      </div>
-
-      <div style="margin-top:10px;">
-        <label style="font-size:13px;color:#667085;">備註</label>
-        <input id="note_${index}" value="${i.note || ''}" placeholder="例如：目前缺貨、明天到、已找順成補貨" style="width:100%;padding:10px;border:1px solid #d1d5db;border-radius:10px;">
-      </div>
-
-      <input type="hidden" id="productId_${index}" value="${i.productId}">
-      <input type="hidden" id="qty_${index}" value="${i.qty}">
-    </div>
-  `).join('');
-
   $('modalTitle').textContent = `備貨作業：${orderId}`;
-
   $('modalBody').innerHTML = `
-    <div style="margin-bottom:14px;color:#344054;line-height:1.7;">
+    <div style="line-height:1.8;color:#344054;margin-bottom:14px;">
       客戶：${order?.customerName || ''}<br>
       電話：${order?.phone || ''}<br>
       地址：${order?.address || ''}
     </div>
 
-    <div style="margin-bottom:14px;">
-      <label style="font-weight:900;">負責備貨員</label>
-      <input id="pickingPicker" value="${admin.name}" style="width:100%;padding:12px;border:1px solid #d1d5db;border-radius:12px;margin-top:6px;">
+    <label style="font-weight:900;">負責備貨員</label>
+    <input id="pickingPicker" value="${order?.picker || admin.name}" style="width:100%;padding:12px;border:1px solid #d1d5db;border-radius:12px;margin:6px 0 14px;">
+
+    <div>
+      ${items.map((i, index) => `
+        <div style="border:1px solid #e5e7eb;border-radius:14px;padding:14px;margin-bottom:12px;">
+          <strong>${i.productName}</strong>
+          <div style="color:#667085;margin-top:4px;">
+            數量：${i.qty}　供應商：${i.supplier || '未設定'}
+          </div>
+
+          <div style="display:flex;gap:16px;margin-top:12px;align-items:center;">
+            <label style="font-weight:900;color:#15803d;">
+              <input type="checkbox" id="picked_${index}" ${i.isPicked ? 'checked' : ''} onchange="togglePicked(${index})">
+              已備妥
+            </label>
+
+            <label style="font-weight:900;color:#b91c1c;">
+              <input type="checkbox" id="out_${index}" ${i.isOutOfStock ? 'checked' : ''} onchange="toggleOut(${index})">
+              無法備到
+            </label>
+
+            <input id="pickedQty_${index}" type="hidden" value="${i.pickedQty || 0}">
+            <input id="productId_${index}" type="hidden" value="${i.productId}">
+            <input id="qty_${index}" type="hidden" value="${i.qty}">
+          </div>
+        </div>
+      `).join('')}
     </div>
 
-    <div id="pickingItemsWrap">
-      ${rows || '<div style="color:#667085;">目前沒有備貨項目</div>'}
-    </div>
+    <label style="font-weight:900;">備貨單備註</label>
+    <textarea id="pickingNote" placeholder="例如：吸色片暫缺，待下批到貨補出。" style="width:100%;height:90px;padding:12px;border:1px solid #d1d5db;border-radius:12px;margin-top:6px;">${order?.pickingNote || ''}</textarea>
 
     <div style="display:flex;gap:10px;margin-top:18px;">
       <button onclick="savePicking('${orderId}', ${items.length})" style="flex:1;background:#0b5cff;color:white;border:0;border-radius:12px;padding:12px;font-weight:900;">儲存備貨進度</button>
@@ -388,90 +262,69 @@ async function openPicking(orderId) {
   $('modal').classList.remove('hidden');
 }
 
-async function savePicking(orderId, count) {
-  const picker = $('pickingPicker').value.trim() || admin.name;
+function togglePicked(index) {
+  if ($(`picked_${index}`).checked) {
+    $(`out_${index}`).checked = false;
+    $(`pickedQty_${index}`).value = $(`qty_${index}`).value;
+  } else {
+    $(`pickedQty_${index}`).value = 0;
+  }
+}
 
+function toggleOut(index) {
+  if ($(`out_${index}`).checked) {
+    $(`picked_${index}`).checked = false;
+    $(`pickedQty_${index}`).value = 0;
+  }
+}
+
+async function savePicking(orderId, count) {
   const items = [];
 
   for (let i = 0; i < count; i++) {
-    const productId = $(`productId_${i}`).value;
-    const qty = Number($(`qty_${i}`).value || 0);
-    const pickedQty = Number($(`pickedQty_${i}`).value || 0);
-    const isPicked = $(`picked_${i}`).checked;
-    const isOutOfStock = $(`out_${i}`).checked;
-    const note = $(`note_${i}`).value || '';
-
     items.push({
-      productId,
-      qty,
-      pickedQty,
-      isPicked,
-      isOutOfStock,
-      note
+      productId: $(`productId_${i}`).value,
+      pickedQty: Number($(`pickedQty_${i}`).value || 0),
+      isPicked: $(`picked_${i}`).checked,
+      isOutOfStock: $(`out_${i}`).checked
     });
   }
 
   const payload = {
     orderId,
-    picker,
+    picker: $('pickingPicker').value.trim() || admin.name,
+    pickingNote: $('pickingNote').value.trim(),
     items
   };
 
   const data = await jsonp(
-    API_URL +
-    '?action=savePickingItems' +
-    '&payload=' +
-    encodeURIComponent(JSON.stringify(payload))
+    `${API_URL}?action=savePickingItems&payload=${encodeURIComponent(JSON.stringify(payload))}`
   );
 
-  if (!data.ok) {
-    alert(data.message || '儲存失敗');
-    return;
-  }
+  if (!data.ok) return alert(data.message || '儲存失敗');
 
   alert('備貨進度已儲存');
   closeModal();
   showOrders();
 }
 
-function closeModal() {
-  $('modal').classList.add('hidden');
-}
-
-async function changeStatus(orderId, status) {
+async function changeStatus(orderId, status, reload = true) {
   const data = await jsonp(
-    API_URL +
-    '?action=updateOrderStatus' +
-    '&orderId=' + encodeURIComponent(orderId) +
-    '&status=' + encodeURIComponent(status)
+    `${API_URL}?action=updateOrderStatus&orderId=${encodeURIComponent(orderId)}&status=${encodeURIComponent(status)}`
   );
 
-  if (!data.ok) {
-    alert(data.message || '更新失敗');
-    return;
-  }
-
-  showOrders();
+  if (!data.ok) return alert(data.message || '更新失敗');
+  if (reload) showOrders();
 }
 
 async function printOrder(orderId) {
   const order = currentOrders.find(o => o.orderId === orderId);
+  const data = await jsonp(`${API_URL}?action=getAdminOrderItems&orderId=${encodeURIComponent(orderId)}&role=staff`);
 
-  const data = await jsonp(
-    API_URL +
-    '?action=getAdminOrderItems' +
-    '&orderId=' + encodeURIComponent(orderId) +
-    '&role=staff'
-  );
-
-  if (!data.ok) {
-    alert(data.message || '讀取明細失敗');
-    return;
-  }
+  if (!data.ok) return alert(data.message || '讀取明細失敗');
 
   const printDiv = document.createElement('div');
   printDiv.className = 'print-area';
-
   printDiv.innerHTML = `
     <h2>好貨倉 出貨單</h2>
     <p>
@@ -479,17 +332,14 @@ async function printOrder(orderId) {
       下單時間：${order.orderDate}<br>
       客戶：${order.customerName}<br>
       電話：${order.phone}<br>
-      地址：${order.address}
+      地址：${order.address}<br>
+      備貨員：${order.picker || ''}<br>
+      備貨備註：${order.pickingNote || ''}
     </p>
 
     <table border="1" cellspacing="0" cellpadding="8" width="100%">
       <thead>
-        <tr>
-          <th>品名</th>
-          <th>單價</th>
-          <th>數量</th>
-          <th>小計</th>
-        </tr>
+        <tr><th>品名</th><th>單價</th><th>數量</th><th>小計</th></tr>
       </thead>
       <tbody>
         ${data.items.map(i => `
@@ -504,22 +354,18 @@ async function printOrder(orderId) {
     </table>
 
     <h3>訂單金額：$${money(order.orderAmount)}</h3>
-
-    <p>
-      □ 已撿貨　□ 已核對　□ 已配送
-    </p>
+    <p>□ 已撿貨　□ 已核對　□ 已配送</p>
   `;
 
   document.body.appendChild(printDiv);
   window.print();
+  setTimeout(() => printDiv.remove(), 500);
+}
 
-  setTimeout(() => {
-    printDiv.remove();
-  }, 500);
+function closeModal() {
+  $('modal').classList.add('hidden');
 }
 
 window.onload = function () {
-  if (admin) {
-    startAdmin();
-  }
+  if (admin) startAdmin();
 };
